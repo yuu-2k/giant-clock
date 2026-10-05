@@ -1,17 +1,60 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Yuu2k Giant Clock</title>
+  <meta name="theme-color" content="#080b12">
+  <title>Yuu2k · Ambient Clock</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="clock-container">
-    <div id="clock">00:00:00</div>
-    <div id="date">MONDAY · 05 OCTOBER 2026</div>
+  <div id="ambient" aria-hidden="true">
+    <div class="ambient__glow"></div>
+    <div class="ambient__weather"></div>
+    <div class="ambient__grain"></div>
   </div>
-  <button id="fullscreen">⛶</button>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand__mark" aria-hidden="true"></span>
+      <span>YUU2K <span class="brand__divider">/</span> AMBIENT SYSTEM</span>
+    </div>
+    <div class="live-indicator"><span></span> LIVE</div>
+  </header>
+
+  <main class="dashboard">
+    <section id="clock-container" aria-label="Clock">
+      <div class="clock-caption"><span id="day-period">YOUR TIME, IN REAL TIME</span></div>
+      <time id="clock">00:00:00</time>
+      <div id="date">LUNDI · 05 OCTOBRE 2026</div>
+    </section>
+
+    <aside id="weather-card" class="weather-card" aria-label="Current weather" aria-live="polite">
+      <div class="weather-card__top">
+        <div class="weather-card__location">
+          <span class="weather-card__eyebrow">LOCAL CONDITIONS</span>
+          <span id="weather-location">WAITING FOR LOCATION</span>
+        </div>
+        <span id="weather-icon" class="weather-card__icon" aria-hidden="true">◌</span>
+      </div>
+      <div class="weather-card__main">
+        <span id="weather-temperature" class="weather-card__temperature">--°</span>
+        <span id="weather-condition" class="weather-card__condition">Connecting to weather…</span>
+      </div>
+      <div class="weather-card__details">
+        <div><span class="weather-card__detail-icon" aria-hidden="true">◉</span><span>HUMIDITY</span><strong id="weather-humidity">--%</strong></div>
+        <div><span class="weather-card__detail-icon" aria-hidden="true">↗</span><span>WIND</span><strong id="weather-wind">-- km/h</strong></div>
+      </div>
+      <div class="weather-card__status"><span id="weather-status">Finding your location…</span><button id="weather-retry" type="button" hidden>Try again</button></div>
+    </aside>
+  </main>
+
+  <footer class="bottombar">
+    <div class="ambient-label"><span class="ambient-label__dot"></span><span id="ambient-label">AUTO AMBIENCE</span></div>
+    <div class="sun-times"><span>☼ <span id="sunrise">--:--</span></span><span class="sun-times__separator">/</span><span>◐ <span id="sunset">--:--</span></span></div>
+  </footer>
+
+  <button id="fullscreen" type="button" aria-label="Enter fullscreen" title="Fullscreen">⛶</button>
   <script src="app.js"></script>
 </body>
 </html>
