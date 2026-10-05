@@ -1,4 +1,12 @@
 :root {
+    --ambient-color-1: #080b12;
+    --ambient-color-2: #101a2a;
+    --ambient-color-3: #111526;
+    --ambient-glow: rgba(117, 164, 235, 0.14);
+    --ambient-intensity: 0.8;
+    --ambient-stars: 0;
+    --ambient-glow-x: 50%;
+    --ambient-glow-y: 54%;
     color-scheme: dark;
     font-family: "Segoe UI", "Helvetica Neue", sans-serif;
     --text: #f3f6ff;
@@ -7,6 +15,54 @@
     --weather-glow: rgba(117, 164, 235, 0.14);
     --surface: rgba(16, 23, 37, 0.48);
     --surface-border: rgba(212, 225, 255, 0.11);
+}
+
+@property --ambient-color-1 {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #080b12;
+}
+
+@property --ambient-color-2 {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #101a2a;
+}
+
+@property --ambient-color-3 {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #111526;
+}
+
+@property --ambient-glow {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: rgba(117, 164, 235, 0.14);
+}
+
+@property --ambient-intensity {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0.8;
+}
+
+@property --ambient-stars {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0;
+}
+
+@property --ambient-glow-x {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 50%;
+}
+
+@property --ambient-glow-y {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 54%;
 }
 
 * {
@@ -24,7 +80,11 @@ body {
     padding: clamp(24px, 4vw, 64px);
     background: #080b12;
     color: var(--text);
-    transition: background-color 1.8s ease, color 1s ease;
+    transition: background-color 1.8s ease, color 1s ease,
+        --ambient-color-1 90s ease, --ambient-color-2 90s ease,
+        --ambient-color-3 90s ease, --ambient-glow 90s ease,
+        --ambient-intensity 90s ease, --ambient-stars 90s ease,
+        --ambient-glow-x 90s ease, --ambient-glow-y 90s ease;
 }
 
 body.day {
@@ -54,8 +114,9 @@ body.night {
     z-index: -1;
     overflow: hidden;
     background:
-        radial-gradient(ellipse at 50% 48%, rgba(29, 40, 63, 0.28), transparent 58%),
-        linear-gradient(145deg, #0a0d15 0%, #0b101a 52%, #080b12 100%);
+        radial-gradient(ellipse at 50% 48%, color-mix(in srgb, var(--ambient-color-2) 78%, transparent), transparent 68%),
+        linear-gradient(145deg, var(--ambient-color-1) 0%, var(--ambient-color-2) 52%, var(--ambient-color-3) 100%);
+    transition: background 90s ease;
 }
 
 #ambient::before {
@@ -66,12 +127,28 @@ body.night {
         linear-gradient(90deg, rgba(164, 192, 239, 0.035) 1px, transparent 1px);
     background-size: 72px 72px;
     mask-image: linear-gradient(to bottom, transparent, #000 25%, #000 78%, transparent);
+    transition: opacity 90s ease;
+}
+
+#ambient::after {
+    content: "";
+    opacity: var(--ambient-stars);
+    background-image:
+        radial-gradient(1px 1px at 12% 22%, rgba(225, 237, 255, 0.72) 98%, transparent),
+        radial-gradient(1px 1px at 25% 68%, rgba(225, 237, 255, 0.52) 98%, transparent),
+        radial-gradient(1px 1px at 41% 31%, rgba(225, 237, 255, 0.58) 98%, transparent),
+        radial-gradient(1px 1px at 63% 16%, rgba(225, 237, 255, 0.65) 98%, transparent),
+        radial-gradient(1px 1px at 78% 54%, rgba(225, 237, 255, 0.5) 98%, transparent),
+        radial-gradient(1px 1px at 91% 35%, rgba(225, 237, 255, 0.66) 98%, transparent);
+    transition: opacity 90s ease;
 }
 
 .ambient__glow {
-    background: radial-gradient(ellipse at 50% 54%, var(--weather-glow), transparent 55%);
-    opacity: 0.8;
-    transition: background 2s ease, opacity 2s ease;
+    background:
+        radial-gradient(ellipse at var(--ambient-glow-x) var(--ambient-glow-y), var(--ambient-glow), transparent 60%),
+        radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--ambient-glow) 62%, transparent), transparent 52%);
+    opacity: var(--ambient-intensity);
+    transition: background 90s ease, opacity 90s ease;
 }
 
 .ambient__weather {
