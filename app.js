@@ -23,7 +23,7 @@ let weatherController = null;
 let geolocationWatchdog = null;
 
 const weatherRefreshInterval = 15 * 60 * 1000;
-const ambientRefreshInterval = 5 * 60 * 1000;
+const ambientRefreshInterval = 60 * 1000;
 const geolocationWatchdogDelay = 8000;
 const requestTimeout = 12000;
 let ambientWeather = {
@@ -35,12 +35,13 @@ let ambientWeather = {
 let lastAmbientStyle = "";
 
 const ambientColorStops = [
-    { temperature: 0, color: "#8ab9e5" },
-    { temperature: 5, color: "#849ebd" },
-    { temperature: 12, color: "#8997aa" },
-    { temperature: 20, color: "#d4a985" },
-    { temperature: 28, color: "#e3a078" },
-    { temperature: 36, color: "#df896f" }
+    { temperature: 0, color: "#91c8ee" },
+    { temperature: 5, color: "#8eabc9" },
+    { temperature: 12, color: "#aab8c5" },
+    { temperature: 20, color: "#e0c3a4" },
+    { temperature: 28, color: "#edbb91" },
+    { temperature: 35, color: "#e9a17f" },
+    { temperature: 42, color: "#df9278" }
 ];
 
 function updateClock() {
@@ -150,17 +151,17 @@ function getTimePalette(now, sunrise, sunset) {
 
     const minuteOfDay = now.getHours() * 60 + now.getMinutes();
     const midday = (sunriseMinute + sunsetMinute) / 2;
-    const night = { color1: "#070912", color2: "#101426", color3: "#17152a", glow: "#7988da", intensity: 0.38, stars: 0.62, glowX: 72, glowY: 30 };
+    const night = { color1: "#080d19", color2: "#111a2c", color3: "#1c1a31", glow: "#899fe0", intensity: 0.48, stars: 0.62, glowX: 76, glowY: 24 };
     const anchors = [
-        { minute: sunriseMinute - 120, ...night },
-        { minute: sunriseMinute - 30, color1: "#0a1020", color2: "#19263a", color3: "#2b293e", glow: "#849bd4", intensity: 0.48, stars: 0.35, glowX: 50, glowY: 70 },
-        { minute: sunriseMinute, color1: "#111a2b", color2: "#293d57", color3: "#493744", glow: "#f0ad99", intensity: 0.66, stars: 0.12, glowX: 50, glowY: 92 },
-        { minute: sunriseMinute + 180, color1: "#111b2d", color2: "#304865", color3: "#51434c", glow: "#e7ad91", intensity: 0.76, stars: 0, glowX: 44, glowY: 78 },
-        { minute: midday, color1: "#0a172b", color2: "#183453", color3: "#223850", glow: "#89baf0", intensity: 0.9, stars: 0, glowX: 50, glowY: 48 },
-        { minute: sunsetMinute - 180, color1: "#171b31", color2: "#403950", color3: "#66464c", glow: "#f0b17f", intensity: 0.82, stars: 0, glowX: 68, glowY: 78 },
-        { minute: sunsetMinute - 30, color1: "#111426", color2: "#30283d", color3: "#4d3042", glow: "#e5909d", intensity: 0.66, stars: 0.08, glowX: 54, glowY: 90 },
+        { minute: sunriseMinute - 90, ...night },
+        { minute: sunriseMinute, color1: "#23374e", color2: "#55718c", color3: "#895d66", glow: "#f2bd9c", intensity: 0.69, stars: 0.12, glowX: 48, glowY: 94 },
+        { minute: sunriseMinute + 120, color1: "#1c4771", color2: "#458bb5", color3: "#a17c78", glow: "#f3c9a0", intensity: 0.82, stars: 0, glowX: 40, glowY: 78 },
+        { minute: midday, color1: "#164b7d", color2: "#348fc0", color3: "#27628d", glow: "#91e2f5", intensity: 1, stars: 0, glowX: 50, glowY: 48 },
+        { minute: sunsetMinute - 180, color1: "#24517b", color2: "#4b85a9", color3: "#9a727c", glow: "#f1c097", intensity: 0.84, stars: 0, glowX: 67, glowY: 77 },
+        { minute: sunsetMinute - 60, color1: "#392e4e", color2: "#87536a", color3: "#b36d69", glow: "#ffd0a1", intensity: 0.72, stars: 0, glowX: 70, glowY: 91 },
+        { minute: sunsetMinute, color1: "#24243e", color2: "#604762", color3: "#a65e68", glow: "#f0a28e", intensity: 0.61, stars: 0.06, glowX: 66, glowY: 95 },
         { minute: sunsetMinute + 90, ...night },
-        { minute: sunriseMinute + 1440 - 120, ...night }
+        { minute: sunriseMinute + 1350, ...night }
     ].sort((a, b) => a.minute - b.minute);
     const timeline = [
         ...anchors.map((anchor) => ({ ...anchor, minute: anchor.minute - 1440 })),
@@ -184,37 +185,76 @@ function applyAmbientBackground() {
         ambientWeather.sunrise,
         ambientWeather.sunset
     );
-    const temperatureTint = getTemperatureTint(ambientWeather.temperature);
-    const temperatureMix = Number.isFinite(ambientWeather.temperature) ? 0.14 : 0;
-
-    palette.color1 = mixColors(palette.color1, temperatureTint, temperatureMix);
-    palette.color2 = mixColors(palette.color2, temperatureTint, temperatureMix * 0.8);
-    palette.color3 = mixColors(palette.color3, temperatureTint, temperatureMix * 0.65);
-    palette.glow = mixColors(palette.glow, temperatureTint, temperatureMix * 0.65);
-
-    const weatherTints = {
-        rain: { color: "#526984", mix: 0.2, darken: 0.12, intensity: -0.1 },
-        cloudy: { color: "#727e91", mix: 0.18, darken: 0, intensity: -0.05 },
-        fog: { color: "#9aabba", mix: 0.2, darken: 0, intensity: 0.02 },
-        sun: { color: "#f3c98f", mix: 0.12, darken: 0, intensity: 0.1 },
-        "partly-cloudy": { color: "#a5b8d2", mix: 0.12, darken: 0, intensity: 0.04 },
-        snow: { color: "#c0ddf2", mix: 0.19, darken: 0, intensity: 0.1 },
-        thunderstorm: { color: "#425574", mix: 0.24, darken: 0.22, intensity: -0.16 }
+    const solarTime = timeToMinutes(ambientWeather.sunrise, 6 * 60);
+    const sunsetTime = timeToMinutes(ambientWeather.sunset, 18 * 60);
+    const minuteOfDay = new Date().getHours() * 60 + new Date().getMinutes();
+    const isDaylight = minuteOfDay >= solarTime && minuteOfDay < sunsetTime;
+    const weatherPalettes = {
+        sun: isDaylight
+            ? { color1: "#164b7d", color2: "#348fc0", color3: "#27628d", glow: "#91e2f5", intensity: 0.87, stars: 0 }
+            : { color1: "#080d19", color2: "#111a2c", color3: "#1c1a31", glow: "#899fe0", intensity: 0.48, stars: 0.62 },
+        "partly-cloudy": isDaylight
+            ? { color1: "#294a6d", color2: "#6487a5", color3: "#55748f", glow: "#b4d9eb", intensity: 0.78, stars: 0 }
+            : { color1: "#0a1020", color2: "#19243a", color3: "#24263c", glow: "#9aaddd", intensity: 0.44, stars: 0.56 },
+        cloudy: isDaylight
+            ? { color1: "#465b70", color2: "#8197a8", color3: "#647c8c", glow: "#c3d1d6", intensity: 0.78, stars: 0 }
+            : { color1: "#101722", color2: "#242e3d", color3: "#2c3040", glow: "#9daec6", intensity: 0.4, stars: 0.48 },
+        fog: isDaylight
+            ? { color1: "#657983", color2: "#a5b4b6", color3: "#879a9e", glow: "#dce8e4", intensity: 0.7, stars: 0 }
+            : { color1: "#202a35", color2: "#3b4854", color3: "#39414f", glow: "#b8c8d3", intensity: 0.4, stars: 0.36 },
+        rain: isDaylight
+            ? { color1: "#203953", color2: "#435f77", color3: "#384d63", glow: "#91b2c5", intensity: 0.65, stars: 0 }
+            : { color1: "#080d17", color2: "#121d2b", color3: "#202537", glow: "#728aa9", intensity: 0.35, stars: 0.3 },
+        snow: isDaylight
+            ? { color1: "#557b9a", color2: "#93b7cc", color3: "#789bad", glow: "#e1f2f5", intensity: 0.88, stars: 0 }
+            : { color1: "#182a3b", color2: "#314c64", color3: "#35415a", glow: "#bdd8ec", intensity: 0.52, stars: 0.36 },
+        thunderstorm: isDaylight
+            ? { color1: "#18283d", color2: "#34475c", color3: "#30364c", glow: "#7d91ad", intensity: 0.48, stars: 0 }
+            : { color1: "#070a13", color2: "#101725", color3: "#191b2d", glow: "#7186b5", intensity: 0.28, stars: 0.18 }
     };
-    const weatherTint = weatherTints[ambientWeather.effect];
-    if (weatherTint) {
-        palette.color1 = mixColors(palette.color1, "#080b12", weatherTint.darken);
-        palette.color2 = mixColors(palette.color2, weatherTint.color, weatherTint.mix);
-        palette.color3 = mixColors(palette.color3, weatherTint.color, weatherTint.mix);
-        palette.glow = mixColors(palette.glow, weatherTint.color, weatherTint.mix);
-        palette.intensity = Math.max(0.2, Math.min(1, palette.intensity + weatherTint.intensity));
+    const weatherPalette = weatherPalettes[ambientWeather.effect];
+    if (weatherPalette) {
+        Object.assign(palette, weatherPalette);
+        if (isDaylight && (ambientWeather.effect === "sun" || ambientWeather.effect === "partly-cloudy")) {
+            const sunProgress = Math.max(0, Math.min(1, (minuteOfDay - solarTime) / Math.max(1, sunsetTime - solarTime)));
+            if (sunProgress < 0.16) {
+                const sunriseBlend = 1 - sunProgress / 0.16;
+                palette.color2 = mixColors(palette.color2, "#d5a98d", sunriseBlend * 0.3);
+                palette.glow = mixColors(palette.glow, "#ffd1a0", sunriseBlend * 0.35);
+                palette.glowY = 94 - sunriseBlend * 12;
+            } else if (sunProgress > 0.78) {
+                const sunsetBlend = (sunProgress - 0.78) / 0.22;
+                palette.color2 = mixColors(palette.color2, "#8b6178", sunsetBlend * 0.38);
+                palette.color3 = mixColors(palette.color3, "#b36c77", sunsetBlend * 0.3);
+                palette.glow = mixColors(palette.glow, "#f2ae99", sunsetBlend * 0.4);
+                palette.glowY = 82 + sunsetBlend * 12;
+                palette.intensity -= sunsetBlend * 0.14;
+            }
+        }
+        if (ambientWeather.effect === "sun" || ambientWeather.effect === "partly-cloudy") {
+            const solarProgress = Math.max(0, Math.min(1, (minuteOfDay - solarTime) / Math.max(1, sunsetTime - solarTime)));
+            const noonBoost = Math.max(0, 1 - Math.abs(solarProgress - 0.5) * 2);
+            palette.intensity = Math.min(1, palette.intensity + noonBoost * 0.13);
+        }
+    }
+
+    const temperatureTint = getTemperatureTint(ambientWeather.temperature);
+    const temperatureMix = Number.isFinite(ambientWeather.temperature) ? 0.1 : 0;
+    palette.color1 = mixColors(palette.color1, temperatureTint, temperatureMix * 0.5);
+    palette.color2 = mixColors(palette.color2, temperatureTint, temperatureMix);
+    palette.color3 = mixColors(palette.color3, temperatureTint, temperatureMix * 0.7);
+    palette.glow = mixColors(palette.glow, temperatureTint, temperatureMix * 0.45);
+    if (Number.isFinite(ambientWeather.temperature)) {
+        const temperatureProgress = Math.max(0, Math.min(1, (ambientWeather.temperature - 5) / 30));
+        const temperatureBrightness = -0.025 + temperatureProgress * 0.06;
+        palette.intensity = Math.max(0.2, Math.min(1, palette.intensity + temperatureBrightness));
     }
 
     const styles = {
         "--ambient-color-1": palette.color1,
         "--ambient-color-2": palette.color2,
         "--ambient-color-3": palette.color3,
-        "--ambient-glow": toRgba(palette.glow, Math.min(0.28, palette.intensity * 0.22).toFixed(3)),
+        "--ambient-glow": toRgba(palette.glow, (isDaylight ? 0.22 + palette.intensity * 0.28 : palette.intensity * 0.2).toFixed(3)),
         "--ambient-intensity": palette.intensity.toFixed(3),
         "--ambient-stars": palette.stars.toFixed(3),
         "--ambient-glow-x": `${palette.glowX.toFixed(1)}%`,
