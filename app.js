@@ -14,7 +14,17 @@ const weatherClasses = [
 
 let weatherCoordinates = null;
 let lastWeatherUpdate = 0;
-let weatherRequestPending = false;
+let locationIsApproximate = false;
+let locationResolvedPrecisely = false;
+let locationAttempt = 0;
+let ipLookupAttempt = 0;
+let weatherRequestId = 0;
+let weatherController = null;
+let geolocationWatchdog = null;
+
+const weatherRefreshInterval = 15 * 60 * 1000;
+const geolocationWatchdogDelay = 8000;
+const requestTimeout = 12000;
 
 function updateClock() {
     const now = new Date();
@@ -67,10 +77,77 @@ function setWeatherError(message, canRetry = true) {
     weatherRetry.hidden = !canRetry;
 }
 
-async function updateWeather() {
-    if (!weatherCoordinates || weatherRequestPending || document.hidden) return;
+function clearGeolocationWatchdog() {
+    if (geolocationWatchdog !== null) {
+        clearTimeout(geolocationWatchdog);
+        geolocationWatchdog = null;
+    }
+}
 
-    weatherRequestPending = true;
+function setLocation(coordinates, approximate, label) {
+    weatherCoordinates = coordinates;
+    locationIsApproximate = approximate;
+    document.getElementById("weather-location").textContent = label.toLocaleUpperCase("en-GB");
+}
+
+async function locateByIp(attempt, reason) {
+    if (attempt !== locationAttempt || ipLookupAttempt === attempt) return;
+
+    ipLookupAttempt = attempt;
+    weatherStatus.textContent = "Using approximate location…";
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), requestTimeout);
+
+    try {
+        const response = await fetch("https://ipwho.is/", {
+            cache: "no-store",
+            signal: controller.signal
+        });
+        if (!response.ok) {
+            throw new Error(`IP location service unavailable (${response.status}).`);
+        }
+
+        const location = await response.json();
+        if (!location.success || !Number.isFinite(location.latitude) ||
+            !Number.isFinite(location.longitude)) {
+            throw new Error(location.message || "IP location service returned invalid coordinates.");
+        }
+        if (attempt !== locationAttempt || locationResolvedPrecisely) return;
+
+        const label = [location.city, location.country]
+            .filter(Boolean)
+            .join(", ") || "Approximate location";
+        setLocation({
+            latitude: location.latitude,
+            longitude: location.longitude
+        }, true, label);
+        console.warn(`[weather] Using approximate IP location after ${reason}.`);
+        await updateWeather();
+    } catch (error) {
+        if (attempt !== locationAttempt || locationResolvedPrecisely) return;
+        console.error("[weather] IP location fallback failed.", error);
+        const details = error instanceof Error
+            ? error.name === "AbortError" ? "The request timed out." : error.message
+            : "Unknown error.";
+        setWeatherError(`Unable to locate you automatically (${details}). Check your connection or try again.`);
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function updateWeather() {
+    if (!weatherCoordinates) return;
+    if (document.hidden) {
+        weatherStatus.textContent = "Weather updates when this tab is active.";
+        return;
+    }
+
+    const requestId = ++weatherRequestId;
+    weatherController?.abort();
+    weatherController = new AbortController();
+    const controller = weatherController;
+    const timeout = setTimeout(() => controller.abort(), requestTimeout);
     weatherRetry.hidden = true;
 
     const params = new URLSearchParams({
@@ -86,7 +163,8 @@ async function updateWeather() {
 
     try {
         const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
-            cache: "no-store"
+            cache: "no-store",
+            signal: controller.signal
         });
         if (!response.ok) {
             throw new Error(`Weather service unavailable (${response.status}).`);
@@ -102,11 +180,11 @@ async function updateWeather() {
             !Number.isFinite(current.weather_code)) {
             throw new Error("The weather service returned incomplete data.");
         }
+        if (requestId !== weatherRequestId) return;
 
         const presentation = getWeatherPresentation(current.weather_code);
         const daylight = isDaylight(current, sunrise, sunset);
 
-        document.getElementById("weather-location").textContent = "LOCAL WEATHER";
         document.getElementById("weather-temperature").textContent =
             `${Math.round(current.temperature_2m)}°`;
         document.getElementById("weather-condition").textContent = presentation.condition;
@@ -119,59 +197,99 @@ async function updateWeather() {
         document.getElementById("sunset").textContent = sunset?.slice(11, 16) ?? "--:--";
         document.getElementById("ambient-label").textContent =
             `${daylight ? "DAY" : "NIGHT"} · ${presentation.condition.toLocaleUpperCase("en-GB")}`;
-        weatherStatus.textContent = `Updated at ${current.time?.slice(11, 16) ?? "just now"}`;
+        weatherStatus.textContent = `Updated at ${current.time?.slice(11, 16) ?? "just now"}${locationIsApproximate ? " · approximate location" : ""}`;
         weatherRetry.hidden = true;
 
         document.body.classList.remove(...weatherClasses, "day", "night");
         document.body.classList.add(`weather-${presentation.effect}`, daylight ? "day" : "night");
         lastWeatherUpdate = Date.now();
     } catch (error) {
+        if (requestId !== weatherRequestId) return;
         const message = error instanceof Error ? error.message : "Unable to retrieve weather.";
+        console.error("[weather] Open-Meteo request failed.", error);
         setWeatherError(lastWeatherUpdate
             ? `Update failed · ${message}`
-            : `${message} Check your connection.`);
+            : `Weather is unavailable · ${message}`);
     } finally {
-        weatherRequestPending = false;
+        clearTimeout(timeout);
+        if (weatherController === controller) weatherController = null;
     }
 }
 
 function locateAndLoadWeather() {
+    const attempt = ++locationAttempt;
+    locationResolvedPrecisely = false;
+    clearGeolocationWatchdog();
+    weatherRetry.hidden = true;
+    weatherStatus.textContent = "Finding your location…";
+    if (!window.isSecureContext) {
+        console.warn("[weather] Geolocation may be blocked: this page is not running in a secure context. HTTPS or localhost is required.");
+        locateByIp(attempt, "insecure context");
+        return;
+    }
     if (!navigator.geolocation) {
-        setWeatherError("Geolocation is not available on this device.");
+        console.warn("[weather] Browser geolocation is unsupported; using IP location.");
+        locateByIp(attempt, "unsupported browser geolocation");
         return;
     }
 
-    weatherRetry.hidden = true;
-    weatherStatus.textContent = "Finding your location…";
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            weatherCoordinates = {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude
-            };
-            updateWeather();
-        },
-        (error) => {
-            const message = error.code === error.PERMISSION_DENIED
-                ? "Allow location access to show the weather."
-                : error.code === error.POSITION_UNAVAILABLE
-                    ? "Your location is temporarily unavailable."
-                    : "Location detection timed out.";
-            setWeatherError(message);
-        },
-        { enableHighAccuracy: false, maximumAge: 300000, timeout: 12000 }
-    );
+    geolocationWatchdog = setTimeout(() => {
+        console.warn("[weather] Geolocation permission or position did not respond; using IP location.");
+        locateByIp(attempt, "geolocation timeout");
+    }, geolocationWatchdogDelay);
+
+    try {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                if (attempt !== locationAttempt) return;
+                clearGeolocationWatchdog();
+                if (!Number.isFinite(position.coords.latitude) ||
+                    !Number.isFinite(position.coords.longitude)) {
+                    console.error("[weather] Geolocation returned invalid coordinates.", position.coords);
+                    locateByIp(attempt, "invalid browser coordinates");
+                    return;
+                }
+                setLocation({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                }, false, "Local weather");
+                locationResolvedPrecisely = true;
+                updateWeather();
+            },
+            (error) => {
+                if (attempt !== locationAttempt) return;
+                clearGeolocationWatchdog();
+                const message = error.code === error.PERMISSION_DENIED
+                    ? "Location permission denied"
+                    : error.code === error.POSITION_UNAVAILABLE
+                        ? "Position unavailable"
+                        : error.code === error.TIMEOUT
+                            ? "Geolocation timed out"
+                            : "Geolocation failed";
+                console.warn(`[weather] ${message} (${error.code}): ${error.message}`);
+                locateByIp(attempt, message.toLowerCase());
+            },
+            { enableHighAccuracy: false, maximumAge: 300000, timeout: requestTimeout }
+        );
+    } catch (error) {
+        clearGeolocationWatchdog();
+        console.error("[weather] Could not start browser geolocation.", error);
+        locateByIp(attempt, "geolocation could not start");
+    }
 }
 
 updateClock();
 setInterval(updateClock, 1000);
-setInterval(updateWeather, 15 * 60 * 1000);
+setInterval(updateWeather, weatherRefreshInterval);
 
-weatherRetry.addEventListener("click", locateAndLoadWeather);
+weatherRetry.addEventListener("click", () => {
+    if (weatherCoordinates) updateWeather();
+    else locateAndLoadWeather();
+});
 locateAndLoadWeather();
 
 document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && Date.now() - lastWeatherUpdate >= 15 * 60 * 1000) {
+    if (!document.hidden && Date.now() - lastWeatherUpdate >= weatherRefreshInterval) {
         if (weatherCoordinates) updateWeather();
         else locateAndLoadWeather();
     }
